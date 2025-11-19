@@ -1,19 +1,66 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Target, TrendingUp, BookOpen, Briefcase, ArrowRight, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { Target, TrendingUp, BookOpen, Briefcase, ArrowRight, CheckCircle2, AlertCircle, Clock, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Dashboard = () => {
-  // Mock data - would come from backend/onboarding in real app
-  const userProfile = {
-    name: "John",
-    currentRole: "Data Analyst",
-    targetRole: "Product Manager",
-    experience: "3-6 years",
-    industry: "IT Services"
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState<any>(null);
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      navigate("/auth");
+      return;
+    }
+
+    const { data: onboardingData, error } = await supabase
+      .from("onboarding_data")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching onboarding data:", error);
+    } else if (!onboardingData) {
+      navigate("/onboarding");
+      return;
+    } else {
+      setUserProfile({
+        name: session.user.email?.split("@")[0] || "User",
+        currentRole: onboardingData.user_role,
+        targetRole: onboardingData.target_role || onboardingData.user_role,
+        experience: onboardingData.experience,
+        industry: onboardingData.industry,
+        objective: onboardingData.objective,
+      });
+    }
+    
+    setLoading(false);
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast({
+      title: "Signed out",
+      description: "You've been successfully signed out.",
+    });
+    navigate("/");
+  };
+
+  // Mock data for skill gaps and learning path
   const skillGaps = {
     hasSkills: ["Data Analysis", "SQL", "Excel", "Python", "Statistics"],
     missingSkills: ["Product Strategy", "User Research", "Roadmap Planning", "Stakeholder Management"],
@@ -26,6 +73,19 @@ const Dashboard = () => {
     { title: "Product Strategy & Roadmapping", duration: "4 weeks", status: "not-started" },
     { title: "Stakeholder Management", duration: "2 weeks", status: "not-started" },
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!userProfile) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
@@ -41,7 +101,10 @@ const Dashboard = () => {
                 Jobready
               </span>
             </div>
-            <Button variant="outline">Profile</Button>
+            <Button variant="outline" onClick={handleSignOut}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
           </div>
         </div>
       </header>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OnboardingData {
   designation: string;
@@ -25,6 +26,29 @@ const Onboarding = () => {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const totalSteps = 7;
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check if user is logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate("/auth");
+      } else {
+        setUserId(session.user.id);
+        // Check if user already completed onboarding
+        supabase
+          .from("onboarding_data")
+          .select("*")
+          .eq("user_id", session.user.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) {
+              navigate("/dashboard");
+            }
+          });
+      }
+    });
+  }, [navigate]);
   
   const [formData, setFormData] = useState<OnboardingData>({
     designation: "",
@@ -54,14 +78,35 @@ const Onboarding = () => {
     }
   };
 
-  const handleSubmit = () => {
-    toast({
-      title: "Profile created!",
-      description: "Analyzing your career path...",
+  const handleSubmit = async () => {
+    if (!userId) return;
+
+    const { error } = await supabase.from("onboarding_data").insert({
+      user_id: userId,
+      designation: formData.designation,
+      user_role: formData.currentRole,
+      experience: formData.experience,
+      industry: formData.industry,
+      company: formData.company,
+      objective: formData.objective,
+      target_role: formData.targetRole || null,
     });
-    setTimeout(() => {
-      navigate("/dashboard");
-    }, 1500);
+
+    if (error) {
+      toast({
+        title: "Error saving profile",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Profile created!",
+        description: "Analyzing your career path...",
+      });
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 1500);
+    }
   };
 
   const progress = (step / totalSteps) * 100;

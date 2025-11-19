@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,40 +7,83 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    // Check if user is already logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate("/onboarding");
+      }
+    });
+  }, [navigate]);
+
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate authentication
-    setTimeout(() => {
-      setIsLoading(false);
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    setIsLoading(false);
+
+    if (error) {
+      toast({
+        title: "Error signing in",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
       toast({
         title: "Welcome back!",
         description: "You've successfully signed in.",
       });
       navigate("/onboarding");
-    }, 1500);
+    }
   };
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate registration
-    setTimeout(() => {
-      setIsLoading(false);
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`,
+      },
+    });
+
+    setIsLoading(false);
+
+    if (error) {
+      toast({
+        title: "Error creating account",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
       toast({
         title: "Account created!",
         description: "Welcome to Jobready. Let's set up your profile.",
       });
       navigate("/onboarding");
-    }, 1500);
+    }
   };
 
   return (
@@ -88,6 +131,7 @@ const Auth = () => {
                     <Label htmlFor="signin-email">Email</Label>
                     <Input 
                       id="signin-email" 
+                      name="email"
                       type="email" 
                       placeholder="you@example.com"
                       required
@@ -97,6 +141,7 @@ const Auth = () => {
                     <Label htmlFor="signin-password">Password</Label>
                     <Input 
                       id="signin-password" 
+                      name="password"
                       type="password"
                       required
                     />
@@ -125,7 +170,8 @@ const Auth = () => {
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
                     <Input 
-                      id="signup-email" 
+                      id="signup-email"
+                      name="email" 
                       type="email" 
                       placeholder="you@example.com"
                       required
@@ -134,9 +180,11 @@ const Auth = () => {
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
                     <Input 
-                      id="signup-password" 
+                      id="signup-password"
+                      name="password" 
                       type="password"
                       required
+                      minLength={6}
                     />
                   </div>
                   <Button 
