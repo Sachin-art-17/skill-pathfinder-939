@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Target, TrendingUp, Users, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Logo } from "@/components/Logo";
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -35,17 +36,15 @@ const Landing = () => {
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
         <nav className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-              <span className="text-white font-bold text-xl">J</span>
-            </div>
-            <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              Jobready
-            </span>
+          <Logo />
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" onClick={() => navigate("/login")}>
+              Sign In
+            </Button>
+            <Button onClick={() => navigate("/signup")}>
+              Get Started
+            </Button>
           </div>
-          <Button variant="outline" onClick={() => navigate("/auth")}>
-            Sign In
-          </Button>
         </nav>
       </header>
 
@@ -75,7 +74,7 @@ const Landing = () => {
             <Button 
               size="lg" 
               className="text-lg px-8"
-              onClick={() => navigate("/auth")}
+              onClick={() => navigate("/signup")}
             >
               Get Started
               <ArrowRight className="ml-2 h-5 w-5" />
@@ -84,8 +83,9 @@ const Landing = () => {
               size="lg" 
               variant="outline"
               className="text-lg px-8"
+              onClick={() => navigate("/login")}
             >
-              Learn More
+              Sign In
             </Button>
           </div>
         </div>
@@ -139,7 +139,7 @@ const Landing = () => {
               <Button 
                 size="lg" 
                 className="text-lg px-8"
-                onClick={() => navigate("/auth")}
+                onClick={() => navigate("/signup")}
               >
                 Start Your Journey
                 <ArrowRight className="ml-2 h-5 w-5" />
@@ -161,7 +161,7 @@ const Landing = () => {
           <Button 
             size="lg" 
             className="text-lg px-8"
-            onClick={() => navigate("/auth")}
+            onClick={() => navigate("/signup")}
           >
             Get Started for Free
             <ArrowRight className="ml-2 h-5 w-5" />

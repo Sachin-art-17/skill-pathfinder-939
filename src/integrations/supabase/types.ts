@@ -19,6 +19,7 @@ export type Database = {
           company: string
           created_at: string | null
           designation: string
+          education_status: string | null
           experience: string
           id: string
           industry: string
@@ -32,6 +33,7 @@ export type Database = {
           company: string
           created_at?: string | null
           designation: string
+          education_status?: string | null
           experience: string
           id?: string
           industry: string
@@ -45,6 +47,7 @@ export type Database = {
           company?: string
           created_at?: string | null
           designation?: string
+          education_status?: string | null
           experience?: string
           id?: string
           industry?: string
@@ -62,6 +65,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          resume_url: string | null
           updated_at: string | null
         }
         Insert: {
@@ -69,6 +73,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          resume_url?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -76,6 +81,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          resume_url?: string | null
           updated_at?: string | null
         }
         Relationships: []
