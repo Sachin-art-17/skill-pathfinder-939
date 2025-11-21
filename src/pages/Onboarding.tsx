@@ -10,6 +10,7 @@ import { ArrowRight, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
+import { Logo } from "@/components/Logo";
 
 interface OnboardingData {
   designation: string;
@@ -19,6 +20,7 @@ interface OnboardingData {
   company: string;
   objective: string;
   targetRole: string;
+  educationStatus: string;
 }
 
 const Onboarding = () => {
@@ -58,6 +60,7 @@ const Onboarding = () => {
     company: "",
     objective: "",
     targetRole: "",
+    educationStatus: "",
   });
 
   const updateFormData = (field: keyof OnboardingData, value: string) => {
@@ -65,7 +68,14 @@ const Onboarding = () => {
   };
 
   const handleNext = () => {
-    if (step < totalSteps) {
+    // Skip steps based on designation
+    if (step === 1 && formData.designation === "student") {
+      // Students skip company question (step 5)
+      setStep(2);
+    } else if (step === 4 && formData.designation === "student") {
+      // Skip from industry (4) to objective (6) for students
+      setStep(6);
+    } else if (step < totalSteps) {
       setStep(step + 1);
     } else {
       handleSubmit();
@@ -86,10 +96,11 @@ const Onboarding = () => {
       designation: formData.designation,
       user_role: formData.currentRole,
       experience: formData.experience,
-      industry: formData.industry,
-      company: formData.company,
+      industry: formData.industry || "N/A",
+      company: formData.company || "N/A",
       objective: formData.objective,
       target_role: formData.targetRole || null,
+      education_status: formData.educationStatus || null,
     });
 
     if (error) {
@@ -115,14 +126,7 @@ const Onboarding = () => {
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 flex flex-col">
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
-        <div className="flex items-center gap-2">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-            <span className="text-white font-bold text-xl">J</span>
-          </div>
-          <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Jobready
-          </span>
-        </div>
+        <Logo />
       </header>
 
       {/* Progress Bar */}
@@ -170,7 +174,23 @@ const Onboarding = () => {
               </div>
             )}
 
-            {step === 2 && (
+            {step === 2 && formData.designation === "student" && (
+              <div className="space-y-4">
+                <Label htmlFor="education-status">Education Status</Label>
+                <Select value={formData.educationStatus} onValueChange={(value) => updateFormData("educationStatus", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select your education status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pursuing">Pursuing</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="gap-year">Gap Year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {step === 2 && formData.designation === "professional" && (
               <div className="space-y-4">
                 <Label htmlFor="current-role">Your current role</Label>
                 <Select value={formData.currentRole} onValueChange={(value) => updateFormData("currentRole", value)}>
@@ -183,6 +203,24 @@ const Onboarding = () => {
                     <SelectItem value="product-manager">Product Manager</SelectItem>
                     <SelectItem value="software-engineer">Software Engineer</SelectItem>
                     <SelectItem value="marketing-manager">Marketing Manager</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {step === 2 && formData.designation === "educator" && (
+              <div className="space-y-4">
+                <Label htmlFor="current-role">Your current role</Label>
+                <Select value={formData.currentRole} onValueChange={(value) => updateFormData("currentRole", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select your role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="professor">Professor</SelectItem>
+                    <SelectItem value="lecturer">Lecturer</SelectItem>
+                    <SelectItem value="teacher">Teacher</SelectItem>
+                    <SelectItem value="instructor">Instructor</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
@@ -236,7 +274,7 @@ const Onboarding = () => {
               </div>
             )}
 
-            {step === 5 && (
+            {step === 5 && formData.designation !== "student" && (
               <div className="space-y-4">
                 <Label htmlFor="company">Current Company</Label>
                 <Input
@@ -323,10 +361,11 @@ const Onboarding = () => {
                 className="flex-1"
                 disabled={
                   (step === 1 && !formData.designation) ||
-                  (step === 2 && !formData.currentRole) ||
+                  (step === 2 && formData.designation === "student" && !formData.educationStatus) ||
+                  (step === 2 && formData.designation !== "student" && !formData.currentRole) ||
                   (step === 3 && !formData.experience) ||
                   (step === 4 && !formData.industry) ||
-                  (step === 5 && !formData.company) ||
+                  (step === 5 && formData.designation !== "student" && !formData.company) ||
                   (step === 6 && !formData.objective) ||
                   (step === 7 && formData.objective === "transition" && !formData.targetRole)
                 }

@@ -1,285 +1,449 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Target, TrendingUp, BookOpen, Briefcase, ArrowRight, CheckCircle2, AlertCircle, Clock, LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Logo } from "@/components/Logo";
+import { LogOut, User, FileText, Upload, Edit2, Target, TrendingUp, BookOpen } from "lucide-react";
+
+interface OnboardingData {
+  designation: string;
+  user_role: string;
+  experience: string;
+  industry: string;
+  company: string;
+  objective: string;
+  target_role: string | null;
+  education_status: string | null;
+}
+
+interface ProfileData {
+  full_name: string | null;
+  email: string | null;
+  resume_url: string | null;
+}
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [onboardingData, setOnboardingData] = useState<OnboardingData | null>(null);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    fullName: "",
+    currentRole: "",
+    industry: "",
+    company: "",
+  });
 
   useEffect(() => {
-    loadUserData();
-  }, []);
-
-  const loadUserData = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      navigate("/auth");
+    if (!loading && !user) {
+      navigate("/login");
       return;
     }
 
-    const { data: onboardingData, error } = await supabase
+    if (user) {
+      fetchUserData();
+    }
+  }, [user, loading, navigate]);
+
+  const fetchUserData = async () => {
+    if (!user) return;
+
+    const { data: onboarding, error: onboardingError } = await supabase
       .from("onboarding_data")
       .select("*")
-      .eq("user_id", session.user.id)
+      .eq("user_id", user.id)
       .maybeSingle();
 
-    if (error) {
-      console.error("Error fetching onboarding data:", error);
-    } else if (!onboardingData) {
+    if (onboardingError) {
+      console.error("Error fetching onboarding data:", onboardingError);
+    } else if (!onboarding) {
       navigate("/onboarding");
       return;
     } else {
-      setUserProfile({
-        name: session.user.email?.split("@")[0] || "User",
-        currentRole: onboardingData.user_role,
-        targetRole: onboardingData.target_role || onboardingData.user_role,
-        experience: onboardingData.experience,
-        industry: onboardingData.industry,
-        objective: onboardingData.objective,
+      setOnboardingData(onboarding);
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+    } else {
+      setProfileData(profile);
+      setEditFormData({
+        fullName: profile?.full_name || "",
+        currentRole: onboarding?.user_role || "",
+        industry: onboarding?.industry || "",
+        company: onboarding?.company || "",
       });
     }
-    
-    setLoading(false);
   };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    toast({
-      title: "Signed out",
-      description: "You've been successfully signed out.",
-    });
     navigate("/");
   };
 
-  // Mock data for skill gaps and learning path
-  const skillGaps = {
-    hasSkills: ["Data Analysis", "SQL", "Excel", "Python", "Statistics"],
-    missingSkills: ["Product Strategy", "User Research", "Roadmap Planning", "Stakeholder Management"],
-    recommendedSkills: ["A/B Testing", "Market Research", "Agile Methodologies"]
+  const handleEditProfile = async () => {
+    if (!user || !onboardingData) return;
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ full_name: editFormData.fullName })
+      .eq("id", user.id);
+
+    const { error: onboardingError } = await supabase
+      .from("onboarding_data")
+      .update({
+        user_role: editFormData.currentRole,
+        industry: editFormData.industry,
+        company: editFormData.company,
+      })
+      .eq("user_id", user.id);
+
+    if (profileError || onboardingError) {
+      toast({
+        title: "Error updating profile",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Profile updated!",
+        description: "Your changes have been saved.",
+      });
+      setIsEditDialogOpen(false);
+      fetchUserData();
+    }
   };
 
-  const learningPath = [
-    { title: "Product Management Fundamentals", duration: "4 weeks", status: "not-started" },
-    { title: "User Research & Analysis", duration: "3 weeks", status: "not-started" },
-    { title: "Product Strategy & Roadmapping", duration: "4 weeks", status: "not-started" },
-    { title: "Stakeholder Management", duration: "2 weeks", status: "not-started" },
-  ];
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
 
-  if (loading) {
+    if (file.type !== "application/pdf") {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PDF file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}/resume.${fileExt}`;
+
+    if (profileData?.resume_url) {
+      await supabase.storage.from('resumes').remove([`${user.id}/resume.pdf`]);
+    }
+
+    const { error: uploadError } = await supabase.storage
+      .from('resumes')
+      .upload(fileName, file, { upsert: true });
+
+    if (uploadError) {
+      toast({
+        title: "Upload failed",
+        description: uploadError.message,
+        variant: "destructive",
+      });
+      setIsUploading(false);
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ resume_url: fileName })
+      .eq("id", user.id);
+
+    setIsUploading(false);
+
+    if (updateError) {
+      toast({
+        title: "Error saving resume",
+        description: updateError.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Resume uploaded!",
+        description: "Your resume has been successfully uploaded.",
+      });
+      fetchUserData();
+    }
+  };
+
+  if (loading || !onboardingData || !profileData) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading your profile...</p>
-        </div>
+        <p className="text-lg text-muted-foreground">Loading your dashboard...</p>
       </div>
     );
   }
 
-  if (!userProfile) return null;
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                <span className="text-white font-bold text-xl">J</span>
-              </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                Jobready
-              </span>
-            </div>
-            <Button variant="outline" onClick={handleSignOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
-            </Button>
-          </div>
+      <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Logo />
+          <Button variant="ghost" onClick={handleSignOut} className="gap-2">
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </Button>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="container mx-auto px-4 py-8">
-        <div className="rounded-2xl bg-gradient-to-r from-primary via-secondary to-accent p-8 text-white">
-          <h1 className="text-3xl font-bold mb-2">Welcome back, {userProfile.name}! 👋</h1>
-          <p className="text-lg opacity-90">
-            Your journey from {userProfile.currentRole} to {userProfile.targetRole}
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
-              {userProfile.experience} experience
-            </Badge>
-            <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
-              {userProfile.industry}
-            </Badge>
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto space-y-8">
+          <div>
+            <h1 className="text-4xl font-bold mb-2">
+              Welcome back, {profileData.full_name || "there"}!
+            </h1>
+            <p className="text-muted-foreground text-lg">
+              Continue your journey to {onboardingData.objective === "transition" ? onboardingData.target_role : "career growth"}
+            </p>
           </div>
-        </div>
-      </section>
 
-      {/* Main Content */}
-      <section className="container mx-auto px-4 pb-12">
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Skill Gap Analysis */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Target className="h-5 w-5 text-primary" />
-                <CardTitle>Skill Gap Analysis</CardTitle>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Profile Summary
+                </CardTitle>
+                <CardDescription>Your current career information</CardDescription>
               </div>
-              <CardDescription>
-                Understanding your current skills vs. target role requirements
-              </CardDescription>
+              <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Edit2 className="h-4 w-4" />
+                    Edit Profile
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit Profile</DialogTitle>
+                    <DialogDescription>
+                      Update your profile information
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">Full Name</Label>
+                      <Input
+                        id="fullName"
+                        value={editFormData.fullName}
+                        onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="currentRole">Current Role</Label>
+                      <Select
+                        value={editFormData.currentRole}
+                        onValueChange={(value) => setEditFormData({ ...editFormData, currentRole: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="data-analyst">Data Analyst</SelectItem>
+                          <SelectItem value="hr-executive">HR Executive</SelectItem>
+                          <SelectItem value="product-manager">Product Manager</SelectItem>
+                          <SelectItem value="software-engineer">Software Engineer</SelectItem>
+                          <SelectItem value="marketing-manager">Marketing Manager</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="industry">Industry</Label>
+                      <Select
+                        value={editFormData.industry}
+                        onValueChange={(value) => setEditFormData({ ...editFormData, industry: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="it-services">IT Services</SelectItem>
+                          <SelectItem value="ecommerce">Ecommerce</SelectItem>
+                          <SelectItem value="banking">Banking</SelectItem>
+                          <SelectItem value="consulting">Consulting</SelectItem>
+                          <SelectItem value="hospitality">Hospitality</SelectItem>
+                          <SelectItem value="healthcare">Healthcare</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="company">Company</Label>
+                      <Input
+                        id="company"
+                        value={editFormData.company}
+                        onChange={(e) => setEditFormData({ ...editFormData, company: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handleEditProfile}>Save Changes</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-success" />
-                    Skills You Have
-                  </h3>
-                  <Badge variant="outline" className="bg-success/10 text-success border-success/20">
-                    {skillGaps.hasSkills.length} skills
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {skillGaps.hasSkills.map((skill, index) => (
-                    <Badge key={index} className="bg-success/10 text-success border-success/20">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
+            <CardContent className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Designation</p>
+                <p className="font-medium capitalize">{onboardingData.designation}</p>
               </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-destructive" />
-                    Skills to Acquire
-                  </h3>
-                  <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">
-                    {skillGaps.missingSkills.length} skills
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {skillGaps.missingSkills.map((skill, index) => (
-                    <Badge key={index} variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Current Role</p>
+                <p className="font-medium">{onboardingData.user_role}</p>
               </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-warning" />
-                    Recommended Skills
-                  </h3>
-                  <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
-                    {skillGaps.recommendedSkills.length} skills
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {skillGaps.recommendedSkills.map((skill, index) => (
-                    <Badge key={index} variant="outline" className="bg-warning/10 text-warning border-warning/20">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Experience</p>
+                <p className="font-medium">{onboardingData.experience} years</p>
               </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Industry</p>
+                <p className="font-medium capitalize">{onboardingData.industry.replace('-', ' ')}</p>
+              </div>
+              {onboardingData.designation !== "student" && (
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Company</p>
+                  <p className="font-medium">{onboardingData.company}</p>
+                </div>
+              )}
+              {onboardingData.education_status && (
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Education Status</p>
+                  <p className="font-medium capitalize">{onboardingData.education_status.replace('-', ' ')}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Quick Stats */}
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Your Progress</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-muted-foreground">Skills Match</span>
-                    <span className="font-semibold">55%</span>
-                  </div>
-                  <Progress value={55} />
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-muted-foreground">Learning Progress</span>
-                    <span className="font-semibold">0%</span>
-                  </div>
-                  <Progress value={0} />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start">
-                  <Briefcase className="h-4 w-4 mr-2" />
-                  View Job Descriptions
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <BookOpen className="h-4 w-4 mr-2" />
-                  Browse Resources
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Learning Roadmap */}
-          <Card className="lg:col-span-3">
+          <Card>
             <CardHeader>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                <CardTitle>Your Learning Roadmap</CardTitle>
-              </div>
-              <CardDescription>
-                Personalized path to become a {userProfile.targetRole}
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Resume
+              </CardTitle>
+              <CardDescription>Upload your resume to get personalized feedback</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {learningPath.map((course, index) => (
-                  <div 
-                    key={index}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                        {index + 1}
-                      </div>
+              <div className="space-y-4">
+                {profileData.resume_url ? (
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-8 w-8 text-primary" />
                       <div>
-                        <h4 className="font-semibold">{course.title}</h4>
-                        <p className="text-sm text-muted-foreground">{course.duration}</p>
+                        <p className="font-medium">Resume uploaded</p>
+                        <p className="text-sm text-muted-foreground">PDF document</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm">
-                      Start
-                      <ArrowRight className="ml-2 h-4 w-4" />
+                    <Button
+                      variant="outline"
+                      onClick={() => document.getElementById('resume-upload')?.click()}
+                      disabled={isUploading}
+                    >
+                      Replace
                     </Button>
                   </div>
-                ))}
+                ) : (
+                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                    <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-lg font-medium mb-2">Upload your resume</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      PDF format only, max 10MB
+                    </p>
+                    <Button
+                      onClick={() => document.getElementById('resume-upload')?.click()}
+                      disabled={isUploading}
+                    >
+                      {isUploading ? "Uploading..." : "Choose File"}
+                    </Button>
+                  </div>
+                )}
+                <input
+                  id="resume-upload"
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={handleResumeUpload}
+                />
               </div>
             </CardContent>
           </Card>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-primary" />
+                  Skill Gap Analysis
+                </CardTitle>
+                <CardDescription>
+                  Identify gaps between your current and target role
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full" variant="secondary">
+                  Start Analysis
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-secondary" />
+                  Career Roadmap
+                </CardTitle>
+                <CardDescription>
+                  Get a personalized learning path
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full" variant="secondary">
+                  View Roadmap
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-accent" />
+                  Learning Resources
+                </CardTitle>
+                <CardDescription>
+                  Curated courses and materials
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full" variant="secondary">
+                  Explore Resources
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </section>
+      </main>
     </div>
   );
 };
